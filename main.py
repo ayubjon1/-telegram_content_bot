@@ -1,4 +1,4 @@
-# main.py - ОБНОВЛЕННАЯ ВЕРСИЯ с мониторингом
+# main.py - УПРОЩЕННАЯ ВЕРСИЯ без внешних зависимостей
 import asyncio
 import logging
 import os
@@ -13,9 +13,9 @@ from config import config, DATABASE_PATH
 from database.models import DatabaseModels
 from services.content_manager import ContentManager
 from services.scheduler import PostScheduler
-from utils.monitoring import SmartMonitor  # НОВЫЙ ИМПОРТ
+from utils.monitoring import SmartMonitor
 
-# Настройка логирования для Windows
+# Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -41,7 +41,8 @@ class ContentBot:
         self.db = None
         self.content_manager = None
         self.scheduler = None
-        self.monitor = None  # НОВЫЙ КОМПОНЕНТ
+        self.monitor = None
+        self.smart_analyzer = None
 
         print(f"✅ Бот инициализирован с токеном: {config.BOT_TOKEN[:10]}...")
 
@@ -69,19 +70,24 @@ class ContentBot:
         logger.info("✅ База данных готова")
 
     async def setup_services(self):
-        """Настройка сервисов с мониторингом"""
+        """Настройка сервисов"""
         self.content_manager = ContentManager(self.bot, self.db)
-
-        # Инициализируем планировщик
         self.scheduler = PostScheduler(self.content_manager, self.db)
-
-        # НОВОЕ: Инициализируем систему мониторинга
         self.monitor = SmartMonitor(self.db, self.scheduler)
+
+        # Пытаемся инициализировать ИИ-анализатор
+        try:
+            from services.smart_analyzer import SmartContentAnalyzer
+            self.smart_analyzer = SmartContentAnalyzer(self.db)
+            logger.info("✅ ИИ-анализатор инициализирован")
+        except Exception as e:
+            logger.warning(f"⚠️ ИИ-анализатор не доступен: {e}")
+            self.smart_analyzer = None
 
         # Восстанавливаем задачи из БД
         await self.scheduler.restore_jobs_from_db()
 
-        logger.info("✅ Сервисы готовы с мониторингом")
+        logger.info("✅ Сервисы готовы")
 
     def setup_handlers(self):
         """Настройка обработчиков"""
@@ -89,13 +95,23 @@ class ContentBot:
             from handlers import admin
             self.dp.include_router(admin.router)
 
+            # Пытаемся подключить аналитику
+            try:
+                from handlers import analytics
+                self.dp.include_router(analytics.router)
+                logger.info("✅ Аналитика подключена")
+            except Exception as e:
+                logger.warning(f"⚠️ Аналитика не подключена: {e}")
+
             # Добавляем middleware для передачи зависимостей
             @self.dp.message.middleware()
             async def db_middleware(handler, event, data):
                 data['db'] = self.db
                 data['content_manager'] = self.content_manager
                 data['scheduler'] = self.scheduler
-                data['monitor'] = self.monitor  # НОВАЯ ЗАВИСИМОСТЬ
+                data['monitor'] = self.monitor
+                data['smart_analyzer'] = self.smart_analyzer
+
                 return await handler(event, data)
 
             logger.info("✅ Обработчики настроены")
@@ -115,15 +131,22 @@ class ContentBot:
             # Запускаем планировщик
             self.scheduler.start()
 
-            # НОВОЕ: Запускаем мониторинг
+            # Запускаем мониторинг
             asyncio.create_task(self.monitor.start_monitoring())
 
-            logger.info("🚀 Бот запущен с мониторингом и автоисцелением")
+            ai_status = "с ИИ-поддержкой" if self.smart_analyzer else "без ИИ"
+
+            logger.info(f"🚀 Бот запущен {ai_status}")
             print("🚀 Бот запущен успешно!")
             print("📝 Логи сохраняются в bot.log")
-            print("📅 Планировщик работает с персистентностью")
+            print("📅 Планировщик работает")
             print("🔍 Система мониторинга активна")
-            print("🛠️ Автоисцеление включено")
+
+            if self.smart_analyzer:
+                print("🧠 ИИ-анализатор готов к работе")
+            else:
+                print("⚠️ ИИ-анализатор недоступен")
+
             print("⏹ Для остановки нажмите Ctrl+C")
 
             await self.bot.delete_webhook(drop_pending_updates=True)
@@ -167,7 +190,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    print("🚀 Запуск Content Manager Bot с мониторингом...")
+    print("🚀 Запуск Content Manager Bot v3.0...")
 
     if not config.validate_config():
         print("❌ Ошибка в конфигурации!")
