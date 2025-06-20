@@ -1,0 +1,30 @@
+# Конфигурационные файлы (ВАЖНО!)
+.env
+.env.local
+.env.production
+config.json
+config.encrypted*
+keys.py
+
+# Логи и база данных
+*.log
+logs/
+data/*.db
+data/*.sqlite
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
