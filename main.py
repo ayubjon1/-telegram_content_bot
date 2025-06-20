@@ -1,3 +1,4 @@
+# main.py - ОБНОВЛЕННАЯ ВЕРСИЯ с мониторингом
 import asyncio
 import logging
 import os
@@ -12,13 +13,14 @@ from config import config, DATABASE_PATH
 from database.models import DatabaseModels
 from services.content_manager import ContentManager
 from services.scheduler import PostScheduler
+from utils.monitoring import SmartMonitor  # НОВЫЙ ИМПОРТ
 
-# Настройка логирования
+# Настройка логирования для Windows
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('bot.log'),
+        logging.FileHandler('bot.log', encoding='utf-8'),
         logging.StreamHandler()
     ]
 )
@@ -39,6 +41,7 @@ class ContentBot:
         self.db = None
         self.content_manager = None
         self.scheduler = None
+        self.monitor = None  # НОВЫЙ КОМПОНЕНТ
 
         print(f"✅ Бот инициализирован с токеном: {config.BOT_TOKEN[:10]}...")
 
@@ -63,13 +66,22 @@ class ContentBot:
         except:
             pass  # Источники уже добавлены
 
-        logger.info("База данных готова")
+        logger.info("✅ База данных готова")
 
     async def setup_services(self):
-        """Настройка сервисов"""
+        """Настройка сервисов с мониторингом"""
         self.content_manager = ContentManager(self.bot, self.db)
-        self.scheduler = PostScheduler(self.content_manager)
-        logger.info("Сервисы готовы")
+
+        # Инициализируем планировщик
+        self.scheduler = PostScheduler(self.content_manager, self.db)
+
+        # НОВОЕ: Инициализируем систему мониторинга
+        self.monitor = SmartMonitor(self.db, self.scheduler)
+
+        # Восстанавливаем задачи из БД
+        await self.scheduler.restore_jobs_from_db()
+
+        logger.info("✅ Сервисы готовы с мониторингом")
 
     def setup_handlers(self):
         """Настройка обработчиков"""
@@ -83,13 +95,14 @@ class ContentBot:
                 data['db'] = self.db
                 data['content_manager'] = self.content_manager
                 data['scheduler'] = self.scheduler
+                data['monitor'] = self.monitor  # НОВАЯ ЗАВИСИМОСТЬ
                 return await handler(event, data)
 
-            logger.info("Обработчики настроены")
+            logger.info("✅ Обработчики настроены")
             print("✅ Обработчики подключены")
 
         except Exception as e:
-            logger.error(f"Ошибка подключения обработчиков: {str(e)}")
+            logger.error(f"❌ Ошибка подключения обработчиков: {str(e)}")
             print(f"❌ Ошибка обработчиков: {str(e)}")
 
     async def start_polling(self):
@@ -97,18 +110,27 @@ class ContentBot:
         try:
             await self.setup_database()
             await self.setup_services()
-            self.setup_handlers()  # ← ВАЖНО: эта строка обязательна!
+            self.setup_handlers()
 
-            logger.info("Бот запущен")
+            # Запускаем планировщик
+            self.scheduler.start()
+
+            # НОВОЕ: Запускаем мониторинг
+            asyncio.create_task(self.monitor.start_monitoring())
+
+            logger.info("🚀 Бот запущен с мониторингом и автоисцелением")
             print("🚀 Бот запущен успешно!")
             print("📝 Логи сохраняются в bot.log")
+            print("📅 Планировщик работает с персистентностью")
+            print("🔍 Система мониторинга активна")
+            print("🛠️ Автоисцеление включено")
             print("⏹ Для остановки нажмите Ctrl+C")
 
             await self.bot.delete_webhook(drop_pending_updates=True)
             await self.dp.start_polling(self.bot)
 
         except Exception as e:
-            logger.error(f"Ошибка запуска бота: {str(e)}")
+            logger.error(f"❌ Ошибка запуска бота: {str(e)}")
             print(f"❌ Ошибка: {str(e)}")
         finally:
             await self.shutdown()
@@ -116,10 +138,18 @@ class ContentBot:
     async def shutdown(self):
         """Корректное завершение работы"""
         try:
+            if self.scheduler:
+                self.scheduler.stop()
+                logger.info("✅ Планировщик остановлен")
+
+            if self.monitor:
+                await self.monitor.stop_monitoring()
+                logger.info("✅ Мониторинг остановлен")
+
             await self.bot.session.close()
-            logger.info("Бот корректно завершил работу")
+            logger.info("✅ Бот корректно завершил работу")
         except Exception as e:
-            logger.error(f"Ошибка при завершении работы: {str(e)}")
+            logger.error(f"❌ Ошибка при завершении работы: {str(e)}")
 
 
 async def main():
@@ -129,18 +159,18 @@ async def main():
     try:
         await bot.start_polling()
     except KeyboardInterrupt:
-        logger.info("Получен сигнал завершения")
+        logger.info("📴 Получен сигнал завершения")
         print("\n⏹ Бот остановлен")
     except Exception as e:
-        logger.error(f"Критическая ошибка: {str(e)}")
+        logger.error(f"💥 Критическая ошибка: {str(e)}")
         print(f"❌ Критическая ошибка: {str(e)}")
 
 
 if __name__ == "__main__":
+    print("🚀 Запуск Content Manager Bot с мониторингом...")
+
     if not config.validate_config():
         print("❌ Ошибка в конфигурации!")
         exit(1)
-
-    print("🚀 Запуск Content Manager Bot...")
 
     asyncio.run(main())

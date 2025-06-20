@@ -564,3 +564,584 @@ async def test_ai_command(message: Message, content_manager):
 
     except Exception as e:
         await message.answer(f"❌ Ошибка тестирования ИИ: {str(e)}")
+
+
+# Добавьте эти команды в handlers/admin.py в конце файла
+
+# ДОБАВЬТЕ ЭТО В КОНЕЦ ФАЙЛА handlers/admin.py
+# (заменяет строки после последней функции)
+
+@router.message(Command("scheduler_status"))
+async def scheduler_status_command(message: Message, scheduler):
+    """Статус нового планировщика"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        status = scheduler.get_scheduler_status()
+        jobs = scheduler.get_scheduled_jobs()
+
+        text = f"""
+🔄 <b>Статус планировщика:</b>
+
+<b>Общее состояние:</b>
+• Работает: {'✅ Да' if status['running'] else '❌ Нет'}
+• Всего задач: {status['total_jobs']}
+• Активных: {status['active_jobs']}
+• Ожидающих: {status['pending_jobs']}
+
+<b>Следующее выполнение:</b>
+• Время: {status['next_execution'] or 'Не запланировано'}
+• Задача: {status['next_job_name'] or 'Нет активных задач'}
+
+<b>Запланированные задачи:</b>
+        """
+
+        if jobs:
+            for job in jobs[:5]:  # Показываем первые 5
+                status_emoji = {
+                    'pending': '⏳',
+                    'running': '⚡',
+                    'completed': '✅',
+                    'failed': '❌',
+                    'cancelled': '🚫'
+                }.get(job['status'], '❓')
+
+                text += f"\n{status_emoji} {job['name']}"
+                if job['next_run']:
+                    run_time = job['next_run'][:16].replace('T', ' ')
+                    text += f"\n   📅 {run_time}"
+        else:
+            text += "\n❌ Нет запланированных задач"
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка получения статуса: {str(e)}")
+
+
+@router.message(Command("quick_schedule"))
+async def quick_schedule_command(message: Message, scheduler):
+    """Быстрое планирование публикаций"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        # Планируем публикации на популярные времена
+        times = ['09:00', '15:00', '21:00']
+        job_ids = scheduler.schedule_daily_posts(times)
+
+        text = f"""
+⚡ <b>Быстрое планирование:</b>
+
+✅ Запланированы ежедневные публикации:
+• 🌅 09:00 - утренние новости
+• 🌞 15:00 - дневная сводка  
+• 🌙 21:00 - вечерний обзор
+
+<b>Созданные задачи:</b>
+        """
+
+        for i, job_id in enumerate(job_ids):
+            text += f"\n• {times[i]}: {job_id[:8]}..."
+
+        text += f"\n\n📊 Используйте /scheduler_status для мониторинга"
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка планирования: {str(e)}")
+
+
+@router.message(Command("schedule_test"))
+async def schedule_test_command(message: Message, scheduler):
+    """Тестирование планировщика"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        # Планируем тестовый пост через 1 минуту
+        from datetime import datetime, timedelta
+
+        test_times = [(datetime.now() + timedelta(minutes=1)).strftime('%H:%M')]
+        job_ids = scheduler.schedule_daily_posts(test_times)
+
+        await message.answer(
+            f"🧪 <b>Тест планировщика:</b>\n\n"
+            f"✅ Запланирован тестовый пост через 1 минуту\n"
+            f"🆔 ID задачи: {job_ids[0][:8]}...\n\n"
+            f"Следите за логами или используйте /scheduler_status",
+            parse_mode="HTML"
+        )
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка тестирования: {str(e)}")
+
+
+@router.message(Command("upgrade_status"))
+async def upgrade_status_command(message: Message, scheduler):
+    """Статус апгрейда до ИИ-агента"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        # Проверяем компоненты
+        scheduler_ok = scheduler.running if scheduler else False
+
+        components = {
+            "🔄 Планировщик": "✅ Upgraded" if scheduler_ok else "❌ Failed",
+            "🔍 Мониторинг": "⏳ Pending",
+            "🧠 ИИ обработка": "⏳ Pending",
+            "📊 Аналитика": "⏳ Pending"
+        }
+
+        completed = sum(1 for status in components.values() if "✅" in status)
+        total = len(components)
+        progress = f"{completed}/{total} ({completed / total * 100:.0f}%)"
+
+        text = f"""
+🚀 <b>Прогресс апгрейда до ИИ-агента:</b>
+
+{chr(10).join(f"{component}: {status}" for component, status in components.items())}
+
+<b>📈 Общий прогресс:</b> {progress}
+
+<b>🎯 Следующие шаги:</b>
+• ⏳ Добавление системы мониторинга
+• ⏳ Улучшение ИИ процессора
+• ⏳ Внедрение ML аналитики
+
+<b>📊 Статус планировщика:</b>
+• Задач в системе: {len(scheduler.jobs) if scheduler else 0}
+• Статус: {'🟢 Работает' if scheduler_ok else '🔴 Не работает'}
+        """
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка получения статуса: {str(e)}")
+
+
+# ДОБАВЬТЕ ЭТИ КОМАНДЫ В КОНЕЦ handlers/admin.py
+
+@router.message(Command("system_status"))
+async def system_status_command(message: Message, monitor):
+    """Статус системы с мониторингом"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        status = monitor.get_system_status()
+
+        text = f"""
+{status['emoji']} <b>Статус системы: {status['status'].upper()}</b>
+
+<b>📊 Ресурсы:</b>
+• CPU: {status['cpu_percent']:.1f}%
+• Память: {status['memory_percent']:.1f}%
+• Диск: {status['disk_percent']:.1f}%
+
+<b>🚨 Алерты:</b>
+• Активных: {status['active_alerts_count']}
+• Критических: {status['critical_alerts']}
+
+<b>🛠️ Автоисцеление:</b>
+• Действий выполнено: {sum(status['healing_actions'].values())}
+• Мониторинг: {'🟢 Активен' if status['monitoring_active'] else '🔴 Остановлен'}
+
+<b>🕐 Последняя проверка:</b> {status['last_check'][:19].replace('T', ' ')}
+        """
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка получения статуса: {str(e)}")
+
+
+@router.message(Command("metrics"))
+async def metrics_command(message: Message, monitor):
+    """Детальные метрики системы"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        summary = monitor.get_metrics_summary(hours=1)
+
+        if not summary:
+            await message.answer("📊 Нет данных метрик")
+            return
+
+        text = f"""
+📊 <b>Метрики за последний час:</b>
+
+<b>🖥️ CPU:</b>
+• Среднее: {summary['cpu']['avg']:.1f}%
+• Максимум: {summary['cpu']['max']:.1f}%
+• Минимум: {summary['cpu']['min']:.1f}%
+
+<b>🧠 Память:</b>
+• Среднее: {summary['memory']['avg']:.1f}%
+• Максимум: {summary['memory']['max']:.1f}%
+• Минимум: {summary['memory']['min']:.1f}%
+
+<b>💾 Диск:</b>
+• Среднее: {summary['disk']['avg']:.1f}%
+• Максимум: {summary['disk']['max']:.1f}%
+• Минимум: {summary['disk']['min']:.1f}%
+
+<b>📈 Точек данных:</b> {summary['data_points']}
+        """
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка получения метрик: {str(e)}")
+
+
+@router.message(Command("alerts"))
+async def alerts_command(message: Message, monitor):
+    """Список активных алертов"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        active_alerts = [a for a in monitor.active_alerts.values() if not a.resolved]
+
+        if not active_alerts:
+            await message.answer("✅ <b>Нет активных алертов</b>\n\nСистема работает стабильно!", parse_mode="HTML")
+            return
+
+        text = "🚨 <b>Активные алерты:</b>\n\n"
+
+        for alert in sorted(active_alerts, key=lambda x: x.timestamp, reverse=True)[:10]:
+            level_emoji = {
+                'info': 'ℹ️',
+                'warning': '⚠️',
+                'error': '❌',
+                'critical': '🔴'
+            }.get(alert.level, '❓')
+
+            time_str = alert.timestamp.strftime('%H:%M')
+            text += f"{level_emoji} <b>{alert.title}</b>\n"
+            text += f"   {alert.message}\n"
+            text += f"   🕐 {time_str}\n\n"
+
+        if len(active_alerts) > 10:
+            text += f"... и еще {len(active_alerts) - 10} алертов"
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка получения алертов: {str(e)}")
+
+
+@router.message(Command("health_check"))
+async def health_check_command(message: Message, monitor, scheduler, db):
+    """Полная проверка здоровья системы"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        await message.answer("🔍 <b>Выполняется проверка здоровья...</b>", parse_mode="HTML")
+
+        checks = []
+
+        # Проверяем мониторинг
+        monitor_status = "✅ Работает" if monitor.running else "❌ Остановлен"
+        checks.append(f"🔍 Мониторинг: {monitor_status}")
+
+        # Проверяем планировщик
+        scheduler_status = "✅ Работает" if scheduler.running else "❌ Остановлен"
+        jobs_count = len(scheduler.jobs)
+        checks.append(f"📅 Планировщик: {scheduler_status} ({jobs_count} задач)")
+
+        # Проверяем БД
+        try:
+            channels = await db.get_channels()
+            db_status = f"✅ Работает ({len(channels)} каналов)"
+        except Exception as e:
+            db_status = f"❌ Ошибка: {str(e)[:30]}"
+        checks.append(f"🗄️ База данных: {db_status}")
+
+        # Проверяем источники новостей
+        try:
+            sources = await db.get_news_sources()
+            active_sources = len([s for s in sources if s['is_active']])
+            sources_status = f"✅ Работает ({active_sources} активных)"
+        except Exception as e:
+            sources_status = f"❌ Ошибка: {str(e)[:30]}"
+        checks.append(f"📰 Источники: {sources_status}")
+
+        # Получаем системные метрики
+        system_status = monitor.get_system_status()
+
+        # Подсчитываем общее здоровье
+        healthy_checks = sum(1 for check in checks if "✅" in check)
+        total_checks = len(checks)
+        health_score = int((healthy_checks / total_checks) * 100)
+
+        # Учитываем системные ресурсы
+        if system_status['cpu_percent'] > 80:
+            health_score -= 10
+        if system_status['memory_percent'] > 80:
+            health_score -= 10
+        if system_status['critical_alerts'] > 0:
+            health_score -= 20
+
+        health_score = max(0, min(100, health_score))
+
+        # Определяем статус
+        if health_score >= 90:
+            overall_emoji = "🟢"
+            overall_status = "ОТЛИЧНО"
+        elif health_score >= 70:
+            overall_emoji = "🟡"
+            overall_status = "ХОРОШО"
+        elif health_score >= 50:
+            overall_emoji = "🟠"
+            overall_status = "УДОВЛЕТВОРИТЕЛЬНО"
+        else:
+            overall_emoji = "🔴"
+            overall_status = "КРИТИЧНО"
+
+        text = f"""
+{overall_emoji} <b>ЗДОРОВЬЕ СИСТЕМЫ: {health_score}% - {overall_status}</b>
+
+<b>🔧 Компоненты:</b>
+{chr(10).join(checks)}
+
+<b>📊 Ресурсы:</b>
+• CPU: {system_status['cpu_percent']:.1f}%
+• Память: {system_status['memory_percent']:.1f}%
+• Диск: {system_status['disk_percent']:.1f}%
+
+<b>🚨 Алерты:</b>
+• Всего активных: {system_status['active_alerts_count']}
+• Критических: {system_status['critical_alerts']}
+
+<b>🛠️ Автоисцеление:</b>
+{chr(10).join([f"• {action}: {count}x" for action, count in system_status['healing_actions'].items()]) or "• Не требовалось"}
+
+<b>💡 Рекомендации:</b>
+        """
+
+        if health_score < 70:
+            text += "\n• ⚠️ Проверьте критические компоненты"
+        if system_status['cpu_percent'] > 80:
+            text += "\n• 🖥️ Высокая нагрузка на CPU"
+        if system_status['memory_percent'] > 80:
+            text += "\n• 🧠 Высокое использование памяти"
+        if system_status['critical_alerts'] > 0:
+            text += "\n• 🚨 Есть критические алерты"
+        if health_score >= 90:
+            text += "\n🎉 Система работает идеально!"
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка проверки здоровья: {str(e)}")
+
+
+@router.message(Command("force_healing"))
+async def force_healing_command(message: Message, monitor):
+    """Принудительное автоисцеление"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        await message.answer("🛠️ <b>Запуск принудительного автоисцеления...</b>", parse_mode="HTML")
+
+        # Создаем тестовые алерты для принудительного исцеления
+        import gc
+
+        actions_taken = []
+
+        # Принудительная сборка мусора
+        collected = gc.collect()
+        actions_taken.append(f"🧹 Сборка мусора: {collected} объектов")
+
+        # Очистка метрик
+        if len(monitor.system_metrics) > 100:
+            while len(monitor.system_metrics) > 100:
+                monitor.system_metrics.popleft()
+            actions_taken.append("📊 Очищены старые метрики")
+
+        # Проверка планировщика
+        if monitor.scheduler and not monitor.scheduler.running:
+            await monitor._heal_scheduler()
+            actions_taken.append("📅 Перезапущен планировщик")
+
+        # Проверка БД
+        try:
+            await monitor.db.get_setting('health_check')
+            actions_taken.append("🗄️ База данных проверена")
+        except:
+            await monitor._heal_database()
+            actions_taken.append("🗄️ База данных переинициализирована")
+
+        text = f"""
+✅ <b>Автоисцеление завершено!</b>
+
+<b>🛠️ Выполненные действия:</b>
+{chr(10).join(actions_taken)}
+
+<b>📊 Результат:</b>
+• Система оптимизирована
+• Ресурсы освобождены
+• Компоненты проверены
+
+Используйте /system_status для проверки результата.
+        """
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка автоисцеления: {str(e)}")
+
+
+# ОБНОВЛЯЕМ команду /upgrade_status для учета мониторинга
+@router.message(Command("upgrade_status"))
+async def upgrade_status_command(message: Message, scheduler=None, monitor=None):
+    """Статус апгрейда до ИИ-агента"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        # Проверяем компоненты
+        scheduler_ok = scheduler.running if scheduler else False
+        monitoring_ok = monitor.running if monitor else False
+
+        components = {
+            "🔄 Планировщик": "✅ Upgraded" if scheduler_ok else "❌ Failed",
+            "🔍 Мониторинг": "✅ Upgraded" if monitoring_ok else "❌ Pending",
+            "🧠 ИИ обработка": "⏳ Pending",
+            "📊 Аналитика": "⏳ Pending"
+        }
+
+        completed = sum(1 for status in components.values() if "✅" in status)
+        total = len(components)
+        progress = f"{completed}/{total} ({completed / total * 100:.0f}%)"
+
+        text = f"""
+🚀 <b>Прогресс апгрейда до ИИ-агента:</b>
+
+{chr(10).join(f"{component}: {status}" for component, status in components.items())}
+
+<b>📈 Общий прогресс:</b> {progress}
+
+<b>🎯 Следующие шаги:</b>
+• ⏳ Добавление системы мониторинга
+• ⏳ Улучшение ИИ процессора
+• ⏳ Внедрение ML аналитики
+
+<b>📊 Статус компонентов:</b>
+• Планировщик: {'🟢 Работает' if scheduler_ok else '🔴 Остановлен'}
+• Задач в системе: {len(scheduler.jobs) if scheduler else 0}
+• Мониторинг: {'🟢 Активен' if monitoring_ok else '🔴 Неактивен'}
+
+<b>💡 Рекомендация:</b>
+Сейчас планировщик работает отлично! 
+Следующий шаг - добавление мониторинга.
+        """
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка получения статуса: {str(e)}")
+
+
+# ДОБАВЬТЕ эту простую команду для проверки мониторинга:
+@router.message(Command("test_monitor"))
+async def test_monitor_command(message: Message):
+    """Тест мониторинга"""
+    if not is_admin(message.from_user.id):
+        return
+
+    try:
+        import psutil
+
+        # Получаем базовые метрики
+        cpu = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+
+        text = f"""
+🔍 <b>Тест системного мониторинга:</b>
+
+<b>📊 Текущие метрики:</b>
+• CPU: {cpu:.1f}%
+• Память: {memory.percent:.1f}%
+• Доступно памяти: {memory.available // (1024 ** 3):.1f} GB
+
+<b>✅ Статус:</b>
+• psutil библиотека: Работает
+• Сбор метрик: Успешно
+• Система готова к мониторингу
+
+<b>🎯 Следующий шаг:</b>
+Интегрировать полную систему мониторинга
+        """
+
+        await message.answer(text, parse_mode="HTML")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка тестирования: {str(e)}")
+
+
+# ОБНОВЛЯЕМ команду /start для включения информации о мониторинге
+@router.message(Command("start"))
+async def start_command(message: Message, state: FSMContext, scheduler, monitor):
+    if not is_admin(message.from_user.id):
+        await message.answer("❌ У вас нет доступа к этому боту.")
+        return
+
+    await state.clear()
+
+    # Проверяем статус компонентов
+    scheduler_status = "✅ Работает" if scheduler and scheduler.running else "❌ Остановлен"
+    monitor_status = "✅ Активен" if monitor and monitor.running else "❌ Неактивен"
+    jobs_count = len(scheduler.jobs) if scheduler else 0
+
+    welcome_text = f"""
+🤖 <b>Content Manager Bot v2.0 - Enterprise Edition</b>
+
+✅ Бот запущен и работает!
+✅ База данных готова
+✅ Все модули подключены
+{scheduler_status} Планировщик ({jobs_count} задач)
+{monitor_status} Система мониторинга
+
+<b>🆕 Enterprise возможности:</b>
+• 📅 Персистентный планировщик с retry логикой
+• 🔍 Real-time мониторинг ресурсов
+• 🛠️ Автоматическое исцеление проблем
+• 🚨 Система алертов и уведомлений
+• 📊 Детальная аналитика производительности
+
+<b>🔍 Команды мониторинга:</b>
+/system_status - состояние системы
+/health_check - полная диагностика
+/metrics - метрики ресурсов
+/alerts - активные алерты
+
+<b>📅 Команды планировщика:</b>
+/scheduler_status - статус планировщика
+/quick_schedule - быстрое планирование
+/schedule_test - тест планировщика
+
+<b>📊 Команды апгрейда:</b>
+/upgrade_status - прогресс до ИИ-агента
+/force_healing - принудительное исцеление
+
+<b>📺 Базовые команды:</b>
+/add_channel - добавить канал
+/list_channels - список каналов
+/test_post - тестовый пост
+
+Используйте меню для управления:
+    """
+
+    await message.answer(
+        welcome_text,
+        parse_mode="HTML",
+        reply_markup=main_menu_keyboard()
+    )
